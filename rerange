@@ -1,0 +1,100 @@
+#!/bin/bash
+# Rename files to range from new start index(keep increment).
+# 2015-07-03 written by Lydia
+# 2018-01-20 modified by Lydia
+#######################################################################|
+d=4  # Digits of file index for '.dat' & '.vtu', e.g. filename0001.dat(d=4)
+newhead=''
+a=''
+mvcmd='mv -iv'
+usage='USAGE: rerange [y] [f] [NEWNAME] INPUTFILES STARTINDEX'
+#######################################################################|
+if [ "$1" = 'h' ]; then echo $usage; exit 1; fi
+if [ "$1" = 'y' ]; then a='y'; shift; fi
+if [ "$1" = 'f' ]; then mvcmd='mv -fv'; shift; fi
+if [ "$1" = 'y' ]; then echo $usage; exit 1; fi
+if [ ! -f $1 ]; then newhead=$1; shift; fi
+if [ $# -lt 2 ]; then echo $usage; exit 1; fi
+if [[ "$(echo $@ | awk '{print $NF}')" =~ ^[0-9]+$ ]]; then
+  ind0new=$(echo $@ | awk '{print $NF}' | awk '{printf "%d\n",$1}')
+  input=$(echo $@ | sed 's/ *[0-9]*$//')
+else echo $usage; exit 1
+fi
+for i in ${input}; do
+  if [ ! -f "$i" ]; then echo "ERROR: Input file '$i' is non-exist or empty"\!; echo $usage; exit 1; fi
+done
+n=$#; n=$((n-1))
+#######################################################################|
+echo "[Start] i = ${ind0new}"
+if ls -t ${input} | tail -1 | egrep -q ".+[0-9]{$d}p[0-9]{$d}\.[^\.]*$"; then
+  suf=$(ls -t ${input} | tail -1 | sed -r "s/^.*p([0-9]{$d}\.[^\.]*)$/\1/")
+  delim='p'
+else
+  suf=$(ls -t ${input} | tail -1 | sed -r "s/^.*\.([^\.]*)$/\1/")
+  delim='.'
+fi
+if [[ "${suf}" = dat || "${suf}" =~ p?vtu$ ]]; then
+  fhead=$(ls -t ${input} | tail -1 | sed -r "s/^(.*)[0-9]{$d}${delim}${suf}$/\1/")
+  ind0=$(ls -t ${input} | tail -1 | sed -r "s/^.*([0-9]{$d})${delim}${suf}$/\1/")
+else
+  fhead=$(ls -t ${input} | tail -1 | sed -r "s/^(.*)\.[0-9]*${delim}${suf}$/\1/")
+  ind0=$(ls -t ${input} | tail -1 | sed -r "s/^.*\.([0-9]*)${delim}${suf}$/\1/")
+fi
+if [ -z "${newhead}" ]; then newhead=${fhead}; fi
+ind0trim=$(echo ${ind0} | awk '{printf "%d\n",$1}')  # trim
+dind=$((ind0new-ind0trim))
+echo ${dind}
+if [[ "${newhead}" = "${fhead}" && $dind -eq 0 ]]; then echo 'Just the same. Nothing to do.'; exit 0; fi
+if [ ${dind} -gt 0 ]; then
+  files=$(ls -t ${input})
+else
+  files=$(ls -t ${input} | tac)
+fi
+echo "[$n files]"
+if [ "$a" != 'y' ]; then
+  j=0
+  for i in ${files}; do
+    j=$((j+1))
+    if [[ $n -gt 16 && $j -gt 10 && $j -lt $((n-4)) ]]; then continue; fi
+    if [[ $n -gt 16 && $j -eq $((n-4)) ]]; then echo ' ... '; fi
+    if [[ "${suf}" == 'dat' || "${suf}" =~ p?vtu$ ]]; then
+      ind=$(echo $i | sed -r "s/^.*([0-9]{$d})${delim}${suf}$/\1/")
+      indtrim=$(echo ${ind} | awk '{printf "%d\n",$1}')
+      indnew=$(printf '%.'$d'd\n' $((indtrim+dind)))
+    else
+      ind=$(echo $i | sed -r "s/^.*\.([0-9]*)${delim}${suf}$/\1/")
+      indtrim=${ind}
+      indnew=$((indtrim+dind))
+    fi
+    if [ ${indnew} -lt 0 ]; then echo "ERROR: '$i': index ${indnew} < 0"\!; echo $usage; exit 1; fi
+    if [[ "${suf}" == 'dat' || "${suf}" =~ p?vtu$ ]]; then
+      if [ ${indnew} -ge $((10**d)) ]; then echo "ERROR: '$i': index ${indnew} > $((10**d-1))"\!; echo $usage; exit 1; fi
+      echo "'$i' --> '"$(echo $i | sed -r "s%^${fhead}${ind}(${delim}${suf})$%${newhead}${indnew}\1%")"'"
+    else
+      echo "'$i' --> '"$(echo $i | sed -r "s%^${fhead}\.${ind}(${delim}${suf})$%${newhead}\.${indnew}\1%")"'"
+    fi
+  done
+  echo -n 'Continue?[y/n]: '; read a
+fi
+if [ "$a" != 'y' ]; then echo 'Abort.'; exit 1; fi
+
+for i in ${files}; do
+  if [[ "${suf}" == 'dat' || "${suf}" =~ p?vtu$ ]]; then
+    ind=$(echo $i | sed -r "s/^.*([0-9]{$d})${delim}${suf}$/\1/")
+    indtrim=$(echo ${ind} | awk '{printf "%d\n",$1}')
+    indnew=$(printf '%.'$d'd\n' $((indtrim+dind)))
+  else
+    ind=$(echo $i | sed -r "s/^.*\.([0-9]*)${delim}${suf}$/\1/")
+    indtrim=${ind}
+    indnew=$((indtrim+dind))
+  fi
+  if [[ "${suf}" == 'dat' || "${suf}" =~ p?vtu$ ]]; then
+    if [ ${indnew} -ge $((10**d)) ]; then echo "ERROR: '$i': index ${indnew} > $((10**d-1))"\!; echo $usage; exit 1; fi
+    ${mvcmd} $i $(echo $i | sed -r "s%^${fhead}${ind}(${delim}${suf})$%${newhead}${indnew}\1%")
+  else
+    ${mvcmd} $i $(echo $i | sed -r "s%^${fhead}\.${ind}(${delim}${suf})$%${newhead}\.${indnew}\1%")
+  fi
+done
+#######################################################################|
+echo '=== Done!(rerange) ==='
+exit 0

@@ -1,0 +1,132 @@
+#!/bin/bash
+# --Step1: Rewrite the parfile automaticly, only the lines of specified parameters will be put in &filelist
+#          and no repeated lines would occur in &filelist;
+# --Step2: Run amrvac with 1 processor
+# Notes: If there's an EXIT signal, the script will exit after restoring the symbolic link 'amrvac.par'(if exist).
+#        If convert type doesn't include 'mpi', force npro=1.
+# 2011-07-29 written by Lydia
+# 2018-03-24 modified by Lydia
+#######################################################################|
+# These are names of parameters used only for converting
+pars='saveprim convert_type nwauxio level_io w_write normvar normt typefilelog'
+# No. processors
+n=$(cat /proc/cpuinfo | grep 'core id' | uniq | wc -l)
+#######################################################################|
+mpi=mpirun
+parfile=amrvac.par
+data=data
+opt=''
+a=''
+link=''
+usage='USAGE: doconvert [PARFILE] [STARTINDEX STOPINDEX] [NP]'
+#######################################################################|
+if [ "$1" = 'h' ]; then echo $usage; exit 1; fi
+if [ ! -x ./amrvac ]; then echo "ERROR: Can't find executable 'amrvac'"\!; exit 1; fi
+# Find parfile
+if [[ $# -gt 0 && ! "$1" =~ ^[0-9]+$ ]]; then parfile=$1; shift; fi
+if [ ! -s ${parfile} ]; then echo "ERROR: '${parfile}' is non-existent or empty"\!; echo $usage; exit 1; fi
+if [ -L ${parfile} ]; then
+  link=${parfile}
+  parfile=$(ls -l ${parfile}); parfile=${parfile##*> }
+fi
+# Get filenamebase
+if grep -q 'base_filename' ${parfile}; then
+  data=$(grep 'base_filename' ${parfile} | awk -F\' '{print $2}')
+fi
+# Get indexes
+if [[ "$1 $2" =~ ^[0-9]+' '[0-9]+$ ]]; then
+  startindex=$1; stopindex=$2
+  if [ ${startindex} -gt ${stopindex} ]; then
+    echo "ERROR: startindex(${startindex}) > stopindex(${stopindex})"\!; exit 1
+  fi
+  shift 2
+elif [ $# -eq 0 ]; then
+  startindex=$(ls -B ${data}*.dat | egrep "^${data}([0-9]{4})?\.dat$" | head -1)
+  startindex=${startindex#*${data}}; startindex=${startindex%.dat}
+   stopindex=$(ls -B ${data}*.dat | egrep "^${data}([0-9]{4})?\.dat$" | tail -1)
+   stopindex=${stopindex#*${data}}; stopindex=${stopindex%.dat}
+else
+  echo $usage; exit 1
+fi
+#startindex=$(echo ${startindex} | sed 's/^0*\(.*\)\(.\)$/\1\2/g')
+startindex=$(echo ${startindex} | awk '{printf "%d\n",$1}')
+# stopindex=$(echo ${stopindex}  | sed 's/^0*\(.*\)\(.\)$/\1\2/g')
+ stopindex=$(echo ${stopindex}  | awk '{printf "%d\n",$1}')
+if [ $# -gt 0 ] && [[ "$1" =~ ^[0-9]+$ ]]; then n=$(echo $1 | awk '{printf "%d\n",$1}'); fi
+if ! egrep -q 'convert_type.*mpi' ${parfile}; then n=1; fi
+# Backup, then use 'tmpparfile' to convert
+cp -v ${parfile} tmpparfile
+# New amrvac
+if ! pwd | grep -q 'mpiamrvac'; then
+  opt=' -i tmpparfile'
+else
+  ln -fsv tmpparfile ${link}
+fi
+#######################################################################|
+# Handle the EXIT signal
+trap "if [ -n \"${link}\" ]; then ln -fsv ${parfile} ${link}; fi; rm -f tmpparfile" EXIT
+#######################################################################|
+# Copy lines before '&filelist'
+sed -n '1,/\&filelist/p' ${parfile} | sed '$d' > tmpparfile
+# Copy lines before ' /' or ' &end' in '&filelist'
+endline=$(sed -n '/\&filelist/,/[\/|\&end] *$/p' ${parfile} | sed -n '$p')
+sed -n '/\&filelist/,/[\/|\&end] *$/p' ${parfile} | sed '$d' >> tmpparfile
+# Write lines of specified parameters
+for par in ${pars}; do
+  if ! egrep -q "^ *${par}(\(.+\))?=" tmpparfile; then
+#    sed -n '/\&filelist/,/\&/p' ${parfile} | sed '$d' | sed -n '/[\/|\&end] *$/,$p' | egrep -m 1 "^ *${par}(\(.+\))? *=" >> tmpparfile
+    sed -n '/\&filelist/,/\&/p' ${parfile} | sed '$d' | sed -n '/[\/|\&end] *$/,$p' | egrep "^ *${par}(\(.+\))? *=" >> tmpparfile
+  fi
+done
+if egrep -q "^ *convert *=" tmpparfile; then
+  sed -i 's/^\( *convert *= *\).*$/\1\.true\./g' tmpparfile
+else
+  echo '        convert=.true.' >> tmpparfile
+fi
+if egrep -q "^ *restart_from_file *=" tmpparfile; then
+  sed -i "s%^\( *restart_from_file *= *\).*$%\1'${data}$(printf "%04d\n" ${startindex})\.dat'%g" tmpparfile
+else
+  echo "        restart_from_file='${data}$(printf "%04d\n" ${startindex}).dat'" >> tmpparfile
+fi
+if egrep -q "^ *snapshotnext *=" tmpparfile; then
+  sed -i 's/^\( *snapshotnext *= *\).*$/\1'$((startindex+1))'/g' tmpparfile
+else
+  echo "        snapshotnext=$((startindex+1))" >> tmpparfile
+fi
+sed -i '/^ *autoconvert *=/d' tmpparfile
+# Write ' /' or ' &end' to the end of '&filelist'
+echo -e "${endline}\n" >> tmpparfile
+# Copy the remanent lines
+sed -n '/\&savelist/,$p' ${parfile} >> tmpparfile
+#######################################################################|
+# For checking
+echo "######## ${parfile} ########"
+sed -n '/\&filelist/,/^ *$/p' tmpparfile
+echo '----------------------------------------------------------'
+echo "Convert: ${parfile} ${data} ${startindex} ${stopindex}"
+echo '----------------------------------------------------------'
+if [ "$a" != 'y' ]; then echo -n 'Continue?[y/n]: '; read a; fi
+if [ "$a" != 'y' ]; then echo 'Abort.'; exit 1; fi
+#######################################################################|
+# Convert
+rm -f convert.log
+num=$((${stopindex}-${startindex}+1))
+starttime=$(date +%s)
+for index in $(seq ${startindex} ${stopindex}); do
+  if [ -f ${data}$(printf "%04d\n" ${index}).dat ]; then
+    rate="$((${index}-${startindex}+1))/${num}"
+    sed -i "s%^\( *restart_from_file *= *\).*$%\1'${data}$(printf "%04d\n" ${index})\.dat'%g" tmpparfile
+    echo '---------------------------------------------------------------------' | tee -a convert.log
+    echo "$mpi -n $n ./amrvac -if ${data}$(printf "%04d\n" ${index}).dat (${rate})" | tee -a convert.log
+    echo '---------------------------------------------------------------------' | tee -a convert.log
+    $mpi -n $n ./amrvac$opt 2>&1 | tee -a convert.log
+  fi
+done
+endtime=$(date +%s)
+echo "Elapsed time: $((${endtime}-${starttime})) sec"
+grep --color 'ERROR' convert.log
+#######################################################################|
+echo '=== Done!(doconvert) ==='
+sound=~/Music/sound/done1
+if [ -f $sound ]; then mplayer $sound > /dev/null 2>&1; fi
+exit 0

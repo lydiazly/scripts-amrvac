@@ -1,0 +1,73 @@
+#!/bin/bash
+# Clean data files of specified suffixs, search by 'base_filename' in parfile
+# 2011-07-31 written by Lydia
+# 2018-03-24 modified by Lydia
+#######################################################################|
+suf='log dat vtu pvtu vti out csv'
+# Data
+outdir=.
+outname=data
+parfile=amrvac.par
+a=''
+files=''
+usage='USAGE: cleandata [y] [PARFILE] [all|log dat vtu ...]'
+#######################################################################|
+if [ "$1" = 'h' ]; then echo $usage; exit 1; fi
+if [ "$1" = 'y' ]; then a=$1; shift; fi
+if [[ $# -gt 0 && -s $1 ]]; then parfile=$1; shift; fi
+if [ ! -s ${parfile} ]; then echo "ERROR: '${parfile}' is non-existent or empty"\!; echo $usage; exit 1; fi
+if [ $# -gt 0 ]; then suf=$*; fi
+echo "[Suffixs] ${suf}"
+suf="($(echo ${suf} | tr ' ' '|'))"
+#######################################################################|
+if grep -q 'base_filename' ${parfile}; then
+  outdir=$(grep 'base_filename' ${parfile} | awk -F\' '{print $2}')
+  outname=${outdir##*/}; outdir=${outdir%/*}
+  if [ "${outname}" = "${outdir}" ]; then outdir=.; fi
+fi
+if [ -f tmpparfile ]; then echo 'Converting process is running. Please wait.'; exit 0; fi
+#######################################################################|
+origindir=$(pwd)
+# Data
+cd ${outdir}
+if [ "${suf}" = '(all)' ]; then
+  outfiles=($(ls | egrep "^${outname}(all|_.+)?([0-9]{4})?.*\..+$"))
+else
+  outfiles=($(ls | egrep "^${outname}(all|_.+)?([0-9]{4})?.*\.${suf}$"))
+fi
+cd ${origindir}
+# Print & Check
+if [ -n "${outfiles[*]}" ]; then
+  echo "[Data] ${outdir}/${outname}"\*
+  cd ${outdir}
+  n=${#outfiles[@]}
+  if [ $n -gt 40 ]; then
+    # ls -oh --time-style=long-iso $(head -n15 ${origindir}/tmpcleandata)
+    # ls -oh --time-style=long-iso $(tail -n15 ${origindir}/tmpcleandata)
+    for i in {0..9}; do ls -oh --time-style=long-iso ${outfiles[$i]}; done
+    echo -e '\t\t\t\t\t\t.\n\t\t\t\t\t\t.\n\t\t\t\t\t\t.'
+    for ((i=$((n/2-5)); i<$((n/2+5)); i++)); do ls -oh --time-style=long-iso ${outfiles[$i]}; done
+    echo -e '\t\t\t\t\t\t.\n\t\t\t\t\t\t.\n\t\t\t\t\t\t.'
+    for ((i=$((n-10)); i<$n; i++)); do ls -oh --time-style=long-iso ${outfiles[$i]}; done
+  elif [ $n -gt 25 ]; then
+    for i in {0..9}; do ls -oh --time-style=long-iso ${outfiles[$i]}; done
+    echo -e '\t\t\t\t\t\t.\n\t\t\t\t\t\t.\n\t\t\t\t\t\t.'
+    for ((i=$((n-10)); i<$n; i++)); do ls -oh --time-style=long-iso ${outfiles[$i]}; done
+  else
+    ls -oh --time-style=long-iso ${outfiles[@]}
+  fi
+  cd ${origindir}
+
+  if [ "$a" != 'y' ]; then echo -n 'Continue?[y/n]: '; read a; fi
+  if [ "$a" != 'y' ]; then echo 'Abort.'; exit 1; fi
+  if [ -n "${outfiles[*]}" ]; then
+    cd ${outdir}
+    rm -v ${outfiles[@]}
+    cd ${origindir}
+  fi
+else
+  echo 'No data found. Nothing to do.'; exit 0
+fi
+#######################################################################|
+echo '=== Done!(cleandata) ==='
+exit 0

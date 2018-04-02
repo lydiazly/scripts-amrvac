@@ -1,0 +1,91 @@
+#!/bin/bash
+# Print human-readable lines by tailing the log file.
+# Notes: 1. Use 'amrvac.par' as default.
+#        2. 'base_filename' would be 'amrvac.log' as default.
+#        3. Only print variables before '|' in the log file.
+#        4. After tailing, if process './amrvac' doesn't exist, then wait for some time if nothing changes.
+#        5. Maybe not print every line if the log file changes too fast.
+# 2011-08-01 written by Lydia
+# 2017-12-10 modified by Lydia
+#######################################################################|
+# Default par-file
+parfile=amrvac.par
+# Default 'base_filename'
+logfile=amrvac.log
+# Waiting time when checking the log file (waitdt*waitimax seconds)
+waitimax=120
+waitdt=0.5
+# Waiting time when tailing (taildt*tailimax seconds)
+tailimax=300
+taildt=0.1
+a=''
+usage='USAGE: taillog [PARFILE]'
+#######################################################################|
+# Check the par-file & find the log file
+if [ $# -gt 0 ]; then parfile=$1; fi
+if [ ! -s ${parfile} ]; then echo "ERROR: '${parfile}' is non-existent or empty"\!; echo $usage; exit 1; fi
+if grep -q 'base_filename' ${parfile}; then
+  logfile=$(grep 'base_filename' ${parfile} | awk -F\' '{print $2}').log
+fi
+#######################################################################|
+# Wait for the log file
+t=0
+#iwait=0
+while [ ! -s ${logfile} ]; do
+  if [ $t -eq 0 ]; then
+#    iwait=1
+#    echo -n 'Please wait.'
+    echo -en 'Waiting... -'
+  else
+#    echo -n '.'
+    if [ $(echo "$t%4" | bc) -eq 1 ]; then
+      echo -en '\b\'
+    elif [ $(echo "$t%4" | bc) -eq 2 ]; then
+      echo -en '\b|'
+    elif [ $(echo "$t%4" | bc) -eq 3 ]; then
+      echo -en '\b/'
+    else
+      echo -en '\b-'
+    fi
+  fi
+  sleep ${waitdt}; t=$(($t+1))
+  if [ $t -ge ${waitimax} ]; then
+    echo -e "\b\b\b\b\b\b\b\b\b\b\b\b'${logfile}' is still empty or non-existent."; exit 1
+  fi
+done
+#if [ ${iwait} -gt 0 ]; then echo -e "\n"; fi
+#######################################################################|
+# Read colums before '|'
+colname="$(grep 'it' ${logfile})"; colname=(${colname%%|*})
+index=($(seq 1 ${#colname[@]}))
+######################################################################################|
+# Choose vars(you can comment this section)                                          #|
+for i in ${!colname[@]}; do ind[$i]="$(($i+1))=${colname[i]}"; done                  #|
+echo -e "\b\b\b\b\b\b\b\b\b\b\b\b${ind[@]}"                                          #|
+echo 'Input indexs(e.g. '1 2 3 5-7') or press [Enter] to use the default(all):' #|
+read a                                                                               #|
+if [ -n "$a" ]; then unset index; fi                                                 #|
+for i in $a; do                                                                      #|
+  index+=($(seq -s' ' ${i%%-*} ${i##*-}))                                            #|
+done                                                                                 #|
+######################################################################################|
+echo -n "[Vars]"
+for i in ${index[@]}; do echo -n " ${colname[i]}"; done
+# Tailing (tested on Ubuntu & Fedora)
+j=0; for i in ${index[@]}; do val[j]='"'${colname[$((i-1))]}'="$'$i; j=$(($j+1)); done
+val=$(echo "${val[@]}" | tr ' ' ',')
+i=1; t=0
+echo -e "\n\n######## ${logfile} ########\n"
+while [ $t -lt ${tailimax} ]; do
+  if [ ! -s ${logfile} ]; then echo "ERROR: '${logfile}' is empty or non-existent."\!; exit 1; fi
+  if [ $(cat ${logfile} | wc -l) -gt $i ]; then
+    t=0; i=$(cat ${logfile} | wc -l)
+    tail -n 1 ${logfile} | awk '{print '${val}'}' | column -t
+    echo ''
+  else t=$(($t+1)); sleep ${taildt}
+  fi
+  if [ "$(whoami)" = 'lydia' ]; then  # If not local
+    if ps -ef | egrep -v ' egrep '| egrep -q '\./amrvac[ |$]'; then t=0; fi
+  fi
+done
+exit 0
