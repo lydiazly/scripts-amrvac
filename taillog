@@ -6,7 +6,7 @@
 #        4. After tailing, if process './amrvac' doesn't exist, then wait for some time if nothing changes.
 #        5. Maybe not print every line if the log file changes too fast.
 # 2011-08-01 written by Lydia
-# 2017-12-10 modified by Lydia
+# 2018-04-17 modified by Lydia
 #######################################################################|
 # Default par-file
 parfile=amrvac.par
@@ -30,27 +30,20 @@ fi
 #######################################################################|
 # Wait for the log file
 t=0
-#iwait=0
+indicator=('-' '\' '|' '/')
 while [ ! -s ${logfile} ]; do
   if [ $t -eq 0 ]; then
-#    iwait=1
-#    echo -n 'Please wait.'
-    echo -en 'Waiting... -'
+    echo -n "Waiting... ${indicator[0]}"
   else
-#    echo -n '.'
-    if [ $(echo "$t%4" | bc) -eq 1 ]; then
-      echo -en '\b\'
-    elif [ $(echo "$t%4" | bc) -eq 2 ]; then
-      echo -en '\b|'
-    elif [ $(echo "$t%4" | bc) -eq 3 ]; then
-      echo -en '\b/'
-    else
-      echo -en '\b-'
-    fi
+    for i in ${!indicator[@]}; do
+      if [ $(echo "$t%${#indicator[@]}" | bc) -eq $i ]; then
+        echo -en "\b${indicator[i]}"; break
+      fi
+    done
   fi
   sleep ${waitdt}; t=$(($t+1))
   if [ $t -ge ${waitimax} ]; then
-    echo -e "\b\b\b\b\b\b\b\b\b\b\b\b'${logfile}' is still empty or non-existent."; exit 1
+    echo -e "\r'${logfile}' is still empty or non-existent."; exit 1
   fi
 done
 #if [ ${iwait} -gt 0 ]; then echo -e "\n"; fi
@@ -61,8 +54,8 @@ index=($(seq 1 ${#colname[@]}))
 ######################################################################################|
 # Choose vars(you can comment this section)                                          #|
 for i in ${!colname[@]}; do ind[$i]="$(($i+1))=${colname[i]}"; done                  #|
-echo -e "\b\b\b\b\b\b\b\b\b\b\b\b${ind[@]}"                                          #|
-echo 'Input indexs(e.g. '1 2 3 5-7') or press [Enter] to use the default(all):' #|
+echo -e "\r${ind[@]}"                                                                #|
+echo 'Input indexs(e.g. '1 2 3 5-7') or press [Enter] to use the default(all):'      #|
 read a                                                                               #|
 if [ -n "$a" ]; then unset index; fi                                                 #|
 for i in $a; do                                                                      #|
@@ -84,7 +77,7 @@ while [ $t -lt ${tailimax} ]; do
     echo ''
   else t=$(($t+1)); sleep ${taildt}
   fi
-  if [ "$(whoami)" = 'lydia' ]; then  # If not local
+  if [[ -n "$(which bsub 2> /dev/null)" || -n "$(which qsub 2> /dev/null)" ]]; then  # If local
     if ps -ef | egrep -v ' egrep '| egrep -q '\./amrvac[ |$]'; then t=0; fi
   fi
 done
