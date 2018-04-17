@@ -96,5 +96,5 @@ for i in ${files}; do
   fi
 done
 #######################################################################|
-echo '=== Done!(rerange) ==='
+echo '=== Done!('$(basename $0)') ==='
 exit 0

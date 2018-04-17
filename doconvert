@@ -126,7 +126,7 @@ endtime=$(date +%s)
 echo "Elapsed time: $((${endtime}-${starttime})) sec"
 grep --color 'ERROR' convert.log
 #######################################################################|
-echo '=== Done!(doconvert) ==='
+echo '=== Done!('$(basename $0)') ==='
 sound=~/Music/sound/done1
 if [ -f $sound ]; then mplayer $sound > /dev/null 2>&1; fi
 exit 0
