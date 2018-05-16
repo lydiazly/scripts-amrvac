@@ -13,19 +13,19 @@ if [[ "$1" =~ ^-?[0-9]+$ ]]; then loop=$(echo $1 | awk '{printf "%d\n",$1}'); sh
 else echo $usage; exit 1
 fi
 if [ ${loop} -le 0 ]; then
-  imax=1; echo -e '###### Infinite loop ######\n'
+  imax=1; echo -e '------ Infinite loop ------\n'
 else
-  imax=${loop}; echo -e "###### Loop = ${imax} ######\n"
+  imax=${loop}; echo -e "------ 1/${imax} ------\n"
 fi
 if [[ "$1" =~ ^[0-9]+$ ]]; then dt=$(echo $1 | awk '{printf "%d\n",$1}'); shift; fi
 cmd=$*
 if [ -z "${cmd}" ]; then echo $usage; exit 1; fi
 #######################################################################|
-i=0
-while [ $i -lt ${imax} ]; do
+i=1
+while [ $i -le ${imax} ]; do
   bash -c "${cmd}"
-  if [ ${loop} -gt 0 ]; then i=$(($i+1)); else i=0; fi
-  if [[ ${dt} -gt 1 && $i -lt ${imax} ]]; then
+  if [ ${loop} -gt 0 ]; then i=$(($i+1)); else i=1; fi
+  if [[ ${dt} -gt 1 && $i -le ${imax} ]]; then
     t=0
     while [ $t -lt ${dt} ]; do
       if [ $t -eq 0 ]; then
@@ -44,9 +44,9 @@ while [ $i -lt ${imax} ]; do
       sleep 1; t=$(($t+1))
     done
     if [ ${loop} -gt 0 ]; then
-      echo -e "\b\b\b\b\b\b\b\b\b\b\b\b------ Rerun($i/${imax}) ------"
+      echo -e "\b\b\b\b\b\b\b\b\b\b\b\b------ $i/${imax} ------"
     else
-      echo -e "\b\b\b\b\b\b\b\b\b\b\b\b------ Rerun ------"
+      echo -e "\b\b\b\b\b\b\b\b\b\b\b\b------------------------"
     fi
   fi
 done
