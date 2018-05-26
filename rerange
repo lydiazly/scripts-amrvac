@@ -1,13 +1,13 @@
 #!/bin/bash
 # Rename files to range from new start index(keep increment).
 # 2015-07-03 written by Lydia
-# 2018-01-20 modified by Lydia
+# 2018-05-26 modified by Lydia
 #######################################################################|
 d=4  # Digits of file index for '.dat' & '.vtu', e.g. filename0001.dat(d=4)
 newhead=''
 a=''
 mvcmd='mv -iv'
-usage='USAGE: rerange [y] [f] [NEWNAME] INPUTFILES STARTINDEX'
+usage="USAGE: $(basename $0) [y] [f] [NEWNAME] INPUTFILES STARTINDEX"
 #######################################################################|
 if [ "$1" = 'h' ]; then echo $usage; exit 1; fi
 if [ "$1" = 'y' ]; then a='y'; shift; fi

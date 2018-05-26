@@ -1,7 +1,7 @@
 #!/bin/bash
 # Clean data files of specified suffixs, search by 'base_filename' in parfile
 # 2011-07-31 written by Lydia
-# 2018-03-24 modified by Lydia
+# 2018-05-26 modified by Lydia
 #######################################################################|
 suf='log dat vtu pvtu vti out csv'
 # Data
@@ -10,7 +10,7 @@ outname=data
 parfile=amrvac.par
 a=''
 files=''
-usage='USAGE: cleandata [y] [PARFILE] [all|log dat vtu ...]'
+usage="USAGE: $(basename $0) [y] [PARFILE] [all|log dat vtu ...]"
 #######################################################################|
 if [ "$1" = 'h' ]; then echo $usage; exit 1; fi
 if [ "$1" = 'y' ]; then a=$1; shift; fi

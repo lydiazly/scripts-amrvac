@@ -5,7 +5,7 @@
 # Notes: If there's an EXIT signal, the script will exit after restoring the symbolic link 'amrvac.par'(if exist).
 #        If convert type doesn't include 'mpi', force npro=1.
 # 2011-07-29 written by Lydia
-# 2018-03-24 modified by Lydia
+# 2018-05-26 modified by Lydia
 #######################################################################|
 # These are names of parameters used only for converting
 pars='saveprim convert_type nwauxio level_io w_write normvar normt typefilelog'
@@ -18,7 +18,7 @@ data=data
 opt=''
 a=''
 link=''
-usage='USAGE: doconvert [PARFILE] [STARTINDEX STOPINDEX] [NP]'
+usage="USAGE: $(basename $0) [PARFILE] [STARTINDEX STOPINDEX] [NP]"
 #######################################################################|
 if [ "$1" = 'h' ]; then echo $usage; exit 1; fi
 if [ ! -x ./amrvac ]; then echo "ERROR: Can't find executable 'amrvac'"\!; exit 1; fi

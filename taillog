@@ -6,7 +6,7 @@
 #        4. After tailing, if process './amrvac' doesn't exist, then wait for some time if nothing changes.
 #        5. Maybe not print every line if the log file changes too fast.
 # 2011-08-01 written by Lydia
-# 2018-05-21 modified by Lydia
+# 2018-05-26 modified by Lydia
 #######################################################################|
 # Default par-file
 parfile=amrvac.par
@@ -19,7 +19,7 @@ waitdt=0.25
 tailimax=300
 taildt=0.1
 a=''
-usage='USAGE: taillog [PARFILE]'
+usage="USAGE: $(basename $0) [PARFILE]"
 #######################################################################|
 # Check the par-file & find the log file
 if [ $# -gt 0 ]; then parfile=$1; fi
