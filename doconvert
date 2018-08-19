@@ -5,7 +5,7 @@
 # Notes: If there's an EXIT signal, the script will exit after restoring the symbolic link 'amrvac.par'(if exist).
 #        If convert type doesn't include 'mpi', force npro=1.
 # 2011-07-29 written by Lydia
-# 2018-05-26 modified by Lydia
+# 2018-08-13 modified by Lydia
 #######################################################################|
 # These are names of parameters used only for converting
 pars='saveprim convert_type nwauxio level_io w_write normvar normt typefilelog'
@@ -88,11 +88,12 @@ if egrep -q "^ *restart_from_file *=" tmpparfile; then
 else
   echo "        restart_from_file='${data}$(printf "%04d\n" ${startindex}).dat'" >> tmpparfile
 fi
-if egrep -q "^ *snapshotnext *=" tmpparfile; then
-  sed -i 's/^\( *snapshotnext *= *\).*$/\1'$((startindex+1))'/g' tmpparfile
-else
-  echo "        snapshotnext=$((startindex+1))" >> tmpparfile
-fi
+# if egrep -q "^ *snapshotnext *=" tmpparfile; then
+#   sed -i 's/^\( *snapshotnext *= *\).*$/\1'$((startindex+1))'/g' tmpparfile
+# else
+#   echo "        snapshotnext=$((startindex+1))" >> tmpparfile
+# fi
+sed -i '/^ *snapshotnext *=/d' tmpparfile
 sed -i '/^ *autoconvert *=/d' tmpparfile
 # Write ' /' or ' &end' to the end of '&filelist'
 echo -e "${endline}\n" >> tmpparfile
@@ -117,7 +118,7 @@ for index in $(seq ${startindex} ${stopindex}); do
     rate="$((${index}-${startindex}+1))/${num}"
     sed -i "s%^\( *restart_from_file *= *\).*$%\1'${data}$(printf "%04d\n" ${index})\.dat'%g" tmpparfile
     echo '---------------------------------------------------------------------' | tee -a convert.log
-    echo "$mpi -n $n ./amrvac -if ${data}$(printf "%04d\n" ${index}).dat (${rate})" | tee -a convert.log
+    echo "$mpi -n $n ./amrvac -i ${parfile} -if ${data}$(printf "%04d\n" ${index}).dat (${rate})" | tee -a convert.log
     echo '---------------------------------------------------------------------' | tee -a convert.log
     $mpi -n $n ./amrvac$opt 2>&1 | tee -a convert.log
   fi
