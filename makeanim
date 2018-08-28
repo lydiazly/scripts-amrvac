@@ -1,0 +1,152 @@
+#!/bin/bash
+# ~/lib
+# Make mpeg animation from multiple image files and/or resize it by 'ffmpeg'
+# 2015-02-13 written by Lydia
+# 2018-08-28 modified by Lydia
+#######################################################################|
+output='anim.avi'
+resize=100%
+framerate=12
+videosuf='(mkv|mp4|flv|avi)'
+tmpsuf=tmpanim
+show=0
+path=.
+a='-y'
+usage="\033[1mUSAGE:\t$(basename $0)\033[0m [OPTIONS] [OUTPUT] INPUTS...\n\
+\033[1mFORMATS:\033[0m gif mkv mp4 flv avi\n\
+\033[1mOPTIONS:\033[0m\n\
+\t\033[1m-y\033[0m \t\toverwrite(default)\n\
+\t\033[1m-r\033[0m N[xN]\tresize (WxH or N%)\n\
+\t\033[1m-f\033[0m N\t\tframerate (frames/sec.)\n\
+\t\033[1m-s\033[0m\t\tplay after finished\n\
+\t\033[1mOUTPUT\033[0m\t\tdefault: ${output}\n\
+\t\033[1mINPUTS...\033[0m\te.g. filename*.png or filename%04d.png\n\
+\033[1mEXAMPLES:\n\t\033[0m $(basename $0) -r 800x600 -f 24 -s anim.mp4 image*.png\n\
+\t\033[0m $(basename $0) -r 80% -s anim.mp4 image*.png\n\
+\t\033[0m $(basename $0) -s anim.mp4 image*.png\n\
+\t\033[0m $(basename $0) -s image*.png"
+#######################################################################|
+if [ "$1" = 'h' ]; then echo -e $usage; exit 1; fi
+# Options
+while getopts ":r:f:l:sy" opt; do
+  case $opt in
+    y ) a='-y' ;;
+    r ) resize=$OPTARG ;;
+    f ) framerate=$OPTARG ;;
+    s ) show=1 ;;
+    * ) echo -e $usage; exit 1 ;;
+  esac
+done
+shift $(($OPTIND - 1))
+if [[ ! "${resize}" =~ ^[0-9]+%?(x[0-9]+%?)?$ ]] || [[ "${resize}" =~ ^0+(x0+)?$ ]]; then
+  echo -e "SYNTAX ERROR: can't resize to '${resize}'"\!; echo -e $usage; exit 1
+fi
+if [[ ! "${framerate}" =~ ^[0-9]+$ ]] || [ ${framerate} -eq 0 ]; then
+  echo "SYNTAX ERROR: framerate should be a positive integer"\!; echo -e $usage; exit 1
+fi
+if [ -z "$*" ]; then echo -e $usage; exit 1; fi
+#######################################################################|
+# Output & Inputs
+if [[ $1 =~ ^.*\.${videosuf}$ ]]; then
+  output=$1; shift
+fi
+# If input is 'xxx%Nd.xxx'
+if [[ "$1" =~ ^.+%[0-9]*d.*$ ]]; then
+  inputs=$1; inputs=$(ls ${inputs%\%*}*.${inputs##*.} | head -1)
+  if [ ! -s "${inputs}" ]; then echo "ERROR: Input file '${inputs}' is non-exist or empty"\!; echo -e $usage | head -1; exit 1; fi
+  path=$(dirname "${inputs}")
+  inputs=$1
+else
+  inputs=$*
+  for i in ${inputs}; do
+    if [ ! -s "$i" ]; then echo "ERROR: Input file '$i' is non-exist or empty"\!; echo -e $usage | head -1; exit 1; fi
+  done
+  path=$(dirname "$1")
+fi
+if [ -z "${inputs}" ]; then echo "ERROR: Inputs are not given"\!; echo -e $usage | head -1; exit 1; fi
+if [ -f "${output}" ]; then
+  if [ "$a" != '-y' ]; then echo -n "${output} exists. Overwrite?[y/n]: "; read a; fi
+  if [ "$a" = 'y' ]; then
+    echo "Overwrite '${output}'."; a='-y'
+  elif [ "$a" = 'n' ]; then
+    output=${output%.*}_2.${output##*.}
+    i=2
+    while [ -f "${output}" ]; do
+      output=${output%_$i.*}_$(($i+1)).${output##*.}
+      i=$(($i+1))
+    done
+    echo "Save as '${output}'."; a=''
+  else
+    echo 'Abort.'; exit 1
+  fi
+fi
+#######################################################################|
+# Command
+cmd2=''
+if [ "${output##*.}" = 'gif' ]; then
+  if [ -z "$(which convert 2> /dev/null)" ]; then
+    echo -e "ERROR: \`convert\` is not installed"\!" Install by typing:\nsudo apt-get install imagemagick"; exit 1
+  fi
+  if [[ "${inputs}" =~ ^.+%[0-9]*d.*$ ]]; then inputs="${inputs%\%*}*.${inputs##*.}"; fi
+  cmd1="convert -delay $((100/${framerate}))"
+  display=eog
+elif [[ "${output##*.}" =~ ^(mkv|mp4|flv|avi)$ ]]; then
+  if [ -z "$(which ffmpeg 2> /dev/null)" ]; then
+    echo -e "ERROR: \`ffmpeg\` is not installed"\!" Install by:\nsudo apt-get install ffmpeg"; exit 1
+  fi
+  cmd1="ffmpeg $a -hide_banner -r ${framerate}"
+  # if [[ ! "${inputs}" =~ ^.+%[0-9]*d.*$ ]]; then
+  #   cmd1="${cmd1} -pattern_type glob"
+  # fi
+  cmd1="${cmd1} -i"
+  cmd2="-pix_fmt yuv444p"
+  if [ "${output##*.}" = 'ogv' ]; then
+    cmd2="${cmd2} -c:v libtheora -q:v 8"
+  else
+    cmd2="${cmd2} -c:v libx264 -crf 17"
+  fi
+  display=totem
+else
+  echo "ERROR: Invalid format '${output##*.}'"\!; echo -e $usage | head -1; exit 1
+fi
+if [[ ${show} -eq 1 && -z "$(which ${display} 2> /dev/null)" ]]; then
+  echo "ERROR: \`${display}\` is not installed"\!; exit 1
+fi
+#######################################################################|
+# Handle the EXIT signal
+trap "find -O2 \"${path}\" -noleaf -type f -regex \"^.+\.${tmpsuf}$\" -delete" EXIT
+#######################################################################|
+if [[ "${inputs}" =~ ^.+%[0-9]*d.*$ ]]; then
+  echo "[Inputs]   $(ls ${inputs%\%*}*.${inputs##*.} | head -1) ... $(ls ${inputs%\%*}*.${inputs##*.} | tail -1)"
+else
+  echo "[Inputs]  $(ls ${inputs} | head -1) ... $(ls ${inputs} | tail -1)"
+fi
+echo -e "[Options] resize    = ${resize}\n\t  framerate = ${framerate}/sec"
+echo "[Output]  ${path}/${output##*/}"
+starttime=$(date +%s)
+# Resize
+if [[ ! "${resize}" =~ ^100%(x100%)?$ ]]; then
+  echo 'Resizing...'
+  for i in ${inputs}; do
+    convert -resize ${resize} $i "${path}/${i##*/}.${tmpsuf}"
+  done
+  inputs="${path}/*.${tmpsuf}"
+fi
+# Make animation
+if [[ "${output##*.}" =~ ^${videosuf}$ ]] && [[ ! "${inputs}" =~ ^.+%[0-9]*d.*$ ]]; then
+  inputs="concat:$(echo ${inputs} | tr ' ' '|')"
+fi
+echo 'Converting...'
+${cmd1} ${inputs} ${cmd2} ${output}
+if [ ${PIPESTATUS[0]} -gt 0 ]; then echo "ERROR: Converting failed"\!; exit 1; fi
+endtime=$(date +%s)
+echo "--> ${path}/${output##*/}"
+echo "Elapsed time: $((${endtime}-${starttime})) sec"
+echo '=== Done!('$(basename $0)') ==='
+#######################################################################|
+# Display
+if [ ${show} -eq 1 ]; then
+  ${display} ${output}
+  if [ ${PIPESTATUS[0]} -gt 0 ]; then echo "ERROR: '${display}' failed"\!; exit 1; fi
+fi
+exit 0
