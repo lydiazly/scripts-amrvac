@@ -4,8 +4,9 @@
 # --Step2: Run amrvac with 1 processor
 # Notes: If there's an EXIT signal, the script will exit after restoring the symbolic link 'amrvac.par'(if exist).
 #        If convert type doesn't include 'mpi', force npro=1.
+#        Only one parfile available here.
 # 2011-07-29 written by Lydia
-# 2018-08-13 modified by Lydia
+# 2018-09-13 modified by Lydia
 #######################################################################|
 # These are names of parameters used only for converting
 pars='saveprim convert_type nwauxio level_io w_write normvar normt typefilelog'
@@ -78,23 +79,25 @@ for par in ${pars}; do
     sed -n '/\&filelist/,/\&/p' ${parfile} | sed '$d' | sed -n '/[\/|\&end] *$/,$p' | egrep "^ *${par}(\(.+\))? *=" >> tmpparfile
   fi
 done
-if egrep -q "^ *convert *=" tmpparfile; then
-  sed -i 's/^\( *convert *= *\).*$/\1\.true\./g' tmpparfile
-else
-  echo '        convert=.true.' >> tmpparfile
-fi
-if egrep -q "^ *restart_from_file *=" tmpparfile; then
-  sed -i "s%^\( *restart_from_file *= *\).*$%\1'${data}$(printf "%04d\n" ${startindex})\.dat'%g" tmpparfile
-else
-  echo "        restart_from_file='${data}$(printf "%04d\n" ${startindex}).dat'" >> tmpparfile
-fi
+# if egrep -q "^ *convert *=" tmpparfile; then
+#   sed -i 's/^\( *convert *= *\).*$/\1\.true\./g' tmpparfile
+# else
+#   echo '        convert=.true.' >> tmpparfile
+# fi
+# if egrep -q "^ *restart_from_file *=" tmpparfile; then
+#   sed -i "s%^\( *restart_from_file *= *\).*$%\1'${data}$(printf "%04d\n" ${startindex})\.dat'%g" tmpparfile
+# else
+#   echo "        restart_from_file='${data}$(printf "%04d\n" ${startindex}).dat'" >> tmpparfile
+# fi
 # if egrep -q "^ *snapshotnext *=" tmpparfile; then
 #   sed -i 's/^\( *snapshotnext *= *\).*$/\1'$((startindex+1))'/g' tmpparfile
 # else
 #   echo "        snapshotnext=$((startindex+1))" >> tmpparfile
 # fi
-sed -i '/^ *snapshotnext *=/d' tmpparfile
+sed -i '/^ *convert*=/d' tmpparfile
 sed -i '/^ *autoconvert *=/d' tmpparfile
+sed -i '/^ *restart_from_file *=/d' tmpparfile
+sed -i '/^ *snapshotnext *=/d' tmpparfile
 # Write ' /' or ' &end' to the end of '&filelist'
 echo -e "${endline}\n" >> tmpparfile
 # Copy the remanent lines
@@ -116,11 +119,15 @@ starttime=$(date +%s)
 for index in $(seq ${startindex} ${stopindex}); do
   if [ -f ${data}$(printf "%04d\n" ${index}).dat ]; then
     rate="$((${index}-${startindex}+1))/${num}"
-    sed -i "s%^\( *restart_from_file *= *\).*$%\1'${data}$(printf "%04d\n" ${index})\.dat'%g" tmpparfile
+    # sed -i "s%^\( *restart_from_file *= *\).*$%\1'${data}$(printf "%04d\n" ${index})\.dat'%g" tmpparfile
+    # sed -i "s%^\( *snapshotnext *= *\).*$%\1$((index+1))%g" tmpparfile
+    sed -n '/\&filelist/,/^ *$/p' tmpparfile
     echo '---------------------------------------------------------------------' | tee -a convert.log
-    echo "$mpi -n $n ./amrvac -i ${parfile} -if ${data}$(printf "%04d\n" ${index}).dat (${rate})" | tee -a convert.log
+    # echo "$mpi -n $n ./amrvac -i ${parfile} -if ${data}$(printf "%04d\n" ${index}).dat (${rate})" | tee -a convert.log
+    echo "$mpi -n $n ./amrvac -i ${parfile} -if ${data}$(printf "%04d\n" ${index}).dat -convert (${rate})" | tee -a convert.log
     echo '---------------------------------------------------------------------' | tee -a convert.log
-    $mpi -n $n ./amrvac$opt 2>&1 | tee -a convert.log
+    # $mpi -n $n ./amrvac$opt 2>&1 | tee -a convert.log
+    $mpi -n $n ./amrvac$opt -if ${data}$(printf "%04d\n" ${index}).dat -convert 2>&1 | tee -a convert.log
   fi
 done
 endtime=$(date +%s)

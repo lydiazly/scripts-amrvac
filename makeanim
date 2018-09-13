@@ -1,13 +1,16 @@
 #!/bin/bash
 # ~/lib
 # Make mpeg animation from multiple image files and/or resize it by 'ffmpeg'
+# Quality:
+# -c:v libtheora -q:v 8
+# -c:v libx264 -crf 17
 # 2015-02-13 written by Lydia
-# 2018-08-28 modified by Lydia
+# 2018-08-29 modified by Lydia
 #######################################################################|
 output='anim.avi'
 resize=100%
 framerate=12
-videosuf='(mkv|mp4|flv|avi)'
+videosuf='(mkv|mp4|flv|avi|ogv)'
 tmpsuf=tmpanim
 show=0
 path=.
