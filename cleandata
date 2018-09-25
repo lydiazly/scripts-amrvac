@@ -1,27 +1,32 @@
 #!/bin/bash
 # Clean data files of specified suffixs, search by 'base_filename' in parfile
 # 2011-07-31 written by Lydia
-# 2018-08-02 modified by Lydia
+# 2018-09-24 modified by Lydia
 #######################################################################|
 suf='log dat vtu pvtu vti out csv'
 # Data
 outdir=.
 outname=data
 parfile=amrvac.par
+filenamestr='base_filename'
+old=''
 a=''
 files=''
 usage="USAGE: $(basename $0) [y] [PARFILE] [all|log dat vtu ...]"
 #######################################################################|
 if [ "$1" = 'h' ]; then echo $usage; exit 1; fi
 if [ "$1" = 'y' ]; then a=$1; shift; fi
+if [ -f amrvacusr.t ]; then
+  old=1; filenamestr='filenameout'
+fi
 if [[ $# -gt 0 && -s $1 ]]; then parfile=$1; shift; fi
 if [ ! -s ${parfile} ]; then echo "ERROR: '${parfile}' is non-existent or empty"\!; echo $usage; exit 1; fi
 if [ $# -gt 0 ]; then suf=$*; fi
 echo "[Suffixs] ${suf}"
 suf="($(echo ${suf} | tr ' ' '|'))"
 #######################################################################|
-if grep -q 'base_filename' ${parfile}; then
-  outdir=$(grep 'base_filename' ${parfile} | awk -F\' '{print $2}')
+if grep -q ${filenamestr} ${parfile}; then
+  outdir=$(grep ${filenamestr} ${parfile} | awk -F\' '{print $2}')
   outname=${outdir##*/}; outdir=${outdir%/*}
   if [ "${outname}" = "${outdir}" ]; then outdir=.; fi
 fi

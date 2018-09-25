@@ -6,12 +6,14 @@
 #        4. After tailing, if process './amrvac' doesn't exist, then wait for some time if nothing changes.
 #        5. Maybe not print every line if the log file changes too fast.
 # 2011-08-01 written by Lydia
-# 2018-05-26 modified by Lydia
+# 2018-09-25 modified by Lydia
 #######################################################################|
 # Default par-file
 parfile=amrvac.par
 # Default 'base_filename'
 logfile=amrvac.log
+filenamestr='base_filename'
+old=''
 # Waiting time when checking the log file (waitdt*waitimax seconds)
 waitimax=240
 waitdt=0.25
@@ -21,11 +23,14 @@ taildt=0.1
 a=''
 usage="USAGE: $(basename $0) [PARFILE]"
 #######################################################################|
+if [ -f amrvacusr.t ]; then
+  old=1; filenamestr='filenameout'
+fi
 # Check the par-file & find the log file
 if [ $# -gt 0 ]; then parfile=$1; fi
 if [ ! -s ${parfile} ]; then echo "ERROR: '${parfile}' is non-existent or empty"\!; echo $usage; exit 1; fi
-if grep -q 'base_filename' ${parfile}; then
-  logfile=$(grep 'base_filename' ${parfile} | awk -F\' '{print $2}').log
+if grep -q ${filenamestr} ${parfile}; then
+  logfile=$(grep ${filenamestr} ${parfile} | awk -F\' '{print $2}').log
 fi
 #######################################################################|
 # Wait for the log file
@@ -50,6 +55,7 @@ done
 #######################################################################|
 # Read colums before '|'
 colname="$(grep 'it' ${logfile})"; colname=(${colname%%|*})
+if [ "${colname[1]}" == 'global_time' ]; then colname[1]='t'; fi
 index=($(seq 1 ${#colname[@]}))
 ######################################################################################|
 # Choose vars(you can comment this section)                                          #|
