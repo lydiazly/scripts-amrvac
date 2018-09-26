@@ -74,7 +74,7 @@ if [ "$a" != 'y' ]; then
       echo "'$i' --> '"$(echo $i | sed -r "s%^${fhead}\.${ind}(${delim}${suf})$%${newhead}\.${indnew}\1%")"'"
     fi
   done
-  echo -n 'Continue?[y/n]: '; read a
+  read -p 'Continue?[y/n]: ' a
 fi
 if [ "$a" != 'y' ]; then echo 'Abort.'; exit 1; fi
 

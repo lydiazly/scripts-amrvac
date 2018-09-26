@@ -109,7 +109,7 @@ sed -n '/\&filelist/,/^ *$/p' tmpparfile
 echo '----------------------------------------------------------'
 echo "Convert: ${parfile} ${data} ${startindex} ${stopindex}"
 echo '----------------------------------------------------------'
-if [ "$a" != 'y' ]; then echo -n 'Continue?[y/n]: '; read a; fi
+if [ "$a" != 'y' ]; then read -p 'Continue?[y/n]: ' a; fi
 if [ "$a" != 'y' ]; then echo 'Abort.'; exit 1; fi
 #######################################################################|
 # Convert
