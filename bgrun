@@ -1,0 +1,7 @@
+#!/bin/bash
+# nohup with no input & output to 'nohup.out'
+# 2018-10-09 written by Lydia
+# 2018-10-09 modified by Lydia
+#######################################################################|
+nohup $@ > nohup.out < /dev/null 2>&1 &
+ps --no-headers -p $!
