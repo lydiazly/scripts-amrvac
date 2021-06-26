@@ -5,5 +5,3 @@
 > (amrvac branch: * master 4c8b195)
 
 * *Update: 2019-03-08*
-
-Keep updating.
