@@ -10,13 +10,13 @@
 output='anim.avi'
 resize=100%
 framerate=12
-videosuf='(mkv|mp4|flv|avi|ogv)'
+videosuf='(mov|mkv|mp4|flv|avi|ogv)'
 tmpsuf=tmpanim
 show=0
 path=.
-a='-y'
+a='y'
 usage="\033[1mUSAGE:\t$(basename $0)\033[0m [OPTIONS] [OUTPUT] INPUTS...\n\
-\033[1mFORMATS:\033[0m gif mkv mp4 flv avi\n\
+\033[1mFORMATS:\033[0m mov gif mkv mp4 flv avi\n\
 \033[1mOPTIONS:\033[0m\n\
 \t\033[1m-y\033[0m \t\toverwrite(default)\n\
 \t\033[1m-r\033[0m N[xN]\tresize (WxH or N%)\n\
@@ -33,7 +33,7 @@ if [ "$1" = 'h' ]; then echo -e $usage; exit 1; fi
 # Options
 while getopts ":r:f:l:sy" opt; do
   case $opt in
-    y ) a='-y' ;;
+    y ) a='y' ;;
     r ) resize=$OPTARG ;;
     f ) framerate=$OPTARG ;;
     s ) show=1 ;;
@@ -68,7 +68,7 @@ else
 fi
 if [ -z "${inputs}" ]; then echo "ERROR: Inputs are not given"\!; echo -e $usage | head -1; exit 1; fi
 if [ -f "${output}" ]; then
-  if [ "$a" != '-y' ]; then echo -n "${output} exists. Overwrite?[y/n]: "; read a; fi
+  if [ "$a" != 'y' ]; then echo -n "${output} exists. Overwrite?[y/n]: "; read a; fi
   if [ "$a" = 'y' ]; then
     echo "Overwrite '${output}'."; a='-y'
   elif [ "$a" = 'n' ]; then
@@ -82,18 +82,20 @@ if [ -f "${output}" ]; then
   else
     echo 'Abort.'; exit 1
   fi
+else
+  if [ "$a" = 'y' ]; then a='-y'; fi
 fi
 #######################################################################|
 # Command
 cmd2=''
 if [ "${output##*.}" = 'gif' ]; then
   if [ -z "$(which convert 2> /dev/null)" ]; then
-    echo -e "ERROR: \`convert\` is not installed"\!" Install by typing:\nsudo apt-get install imagemagick"; exit 1
+    echo -e "ERROR: \`convert\` is not installed"\!" Install by:\nsudo apt-get install imagemagick"; exit 1
   fi
   if [[ "${inputs}" =~ ^.+%[0-9]*d.*$ ]]; then inputs="${inputs%\%*}*.${inputs##*.}"; fi
   cmd1="convert -delay $((100/${framerate}))"
   display=eog
-elif [[ "${output##*.}" =~ ^(mkv|mp4|flv|avi)$ ]]; then
+elif [[ "${output##*.}" =~ ^${videosuf}$ ]]; then
   if [ -z "$(which ffmpeg 2> /dev/null)" ]; then
     echo -e "ERROR: \`ffmpeg\` is not installed"\!" Install by:\nsudo apt-get install ffmpeg"; exit 1
   fi

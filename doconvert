@@ -1,12 +1,13 @@
 #!/bin/bash
-# --Step1: Rewrite the parfile automaticly, only the lines of specified parameters will be put in &filelist
-#          and no repeated lines would occur in &filelist;
-# --Step2: Run amrvac with 1 processor
-# Notes: If there's an EXIT signal, the script will exit after restoring the symbolic link 'amrvac.par'(if exist).
-#        If convert type doesn't include 'mpi', force npro=1.
-#        Only one parfile available here.
+# - Step1: Rewrite the first parfile automaticly,
+#          only add the specified lines in &filelist,
+#          duplicate lines will be removed.
+# - Step2: Run amrvac with 1 processor
+# Notes: Only use the &filelist in the first parfile.
+#        If there's an EXIT signal, the script will exit after restoring the symbolic link 'amrvac.par'(if exist).
+#        If convert type doesn't include 'mpi', force np=1.
 # 2011-07-29 written by Lydia
-# 2018-09-13 modified by Lydia
+# 2019-02-25 modified by Lydia
 #######################################################################|
 # These are names of parameters used only for converting
 pars='saveprim convert_type nwauxio level_io w_write normvar normt typefilelog'
@@ -18,22 +19,33 @@ parfile=amrvac.par
 data=data
 opt=''
 a=''
-link=''
-usage="USAGE: $(basename $0) [PARFILE] [STARTINDEX STOPINDEX] [NP]"
+usage="USAGE: $(basename $0) [y] [PARFILE1 [PARFILE2 ...]] [STARTINDEX STOPINDEX] [NP]"
 #######################################################################|
 if [ "$1" = 'h' ]; then echo $usage; exit 1; fi
+if [ "$1" = 'y' ]; then a=$1; shift; fi
 if [ ! -x ./amrvac ]; then echo "ERROR: Can't find executable 'amrvac'"\!; exit 1; fi
 # Find parfile
-if [[ $# -gt 0 && ! "$1" =~ ^[0-9]+$ ]]; then parfile=$1; shift; fi
-if [ ! -s ${parfile} ]; then echo "ERROR: '${parfile}' is non-existent or empty"\!; echo $usage; exit 1; fi
-if [ -L ${parfile} ]; then
-  link=${parfile}
-  parfile=$(ls -l ${parfile}); parfile=${parfile##*> }
-fi
+parfile=()
+linkname=''
+for i in $@; do
+  if [[ ! "$i" =~ ^[0-9]+$ ]]; then
+    if [ ! -s $i ]; then echo "ERROR: '$i' is non-existent or empty"\!; echo $usage; exit 1; fi
+    if [ -L $i ]; then
+      linkname=$i
+      tmp=$(ls -l $i); tmp=${tmp##*> }
+      parfile=(${parfile[@]} ${tmp})
+    else
+      parfile=(${parfile[@]} $i)
+    fi
+    shift
+  fi
+done
 # Get filenamebase
-if grep -q 'base_filename' ${parfile}; then
-  data=$(grep 'base_filename' ${parfile} | awk -F\' '{print $2}')
-fi
+for i in ${parfile[@]}; do
+  if grep -q 'base_filename' $i; then
+    data=$(grep 'base_filename' $i | awk -F\' '{print $2}')
+  fi
+done
 # Get indexes
 if [[ "$1 $2" =~ ^[0-9]+' '[0-9]+$ ]]; then
   startindex=$1; stopindex=$2
@@ -54,29 +66,31 @@ startindex=$(echo ${startindex} | awk '{printf "%d\n",$1}')
 # stopindex=$(echo ${stopindex}  | sed 's/^0*\(.*\)\(.\)$/\1\2/g')
  stopindex=$(echo ${stopindex}  | awk '{printf "%d\n",$1}')
 if [ $# -gt 0 ] && [[ "$1" =~ ^[0-9]+$ ]]; then n=$(echo $1 | awk '{printf "%d\n",$1}'); fi
-if ! egrep -q 'convert_type.*mpi' ${parfile}; then n=1; fi
+for i in ${parfile[@]}; do
+  if ! egrep -q 'convert_type.*mpi' $i; then n=1; fi
+done
 # Backup, then use 'tmpparfile' to convert
-cp -v ${parfile} tmpparfile
+cp -v ${parfile[0]} tmpparfile
 # New amrvac
 if ! pwd | grep -q 'mpiamrvac'; then
-  opt=' -i tmpparfile'
+  opt=" -i tmpparfile ${parfile[*]:1}"
 else
-  ln -fsv tmpparfile ${link}
+  ln -fsv tmpparfile ${linkname}
 fi
 #######################################################################|
 # Handle the EXIT signal
-trap "if [ -n \"${link}\" ]; then ln -fsv ${parfile} ${link}; fi; rm -f tmpparfile" EXIT
+trap "if [ -n \"${linkname}\" ]; then ln -fsv ${parfile[0]} ${linkname}; fi; rm -f tmpparfile" EXIT
 #######################################################################|
 # Copy lines before '&filelist'
-sed -n '1,/\&filelist/p' ${parfile} | sed '$d' > tmpparfile
+sed -n '1,/\&filelist/p' ${parfile[0]} | sed '$d' > tmpparfile
 # Copy lines before ' /' or ' &end' in '&filelist'
-endline=$(sed -n '/\&filelist/,/[\/|\&end] *$/p' ${parfile} | sed -n '$p')
-sed -n '/\&filelist/,/[\/|\&end] *$/p' ${parfile} | sed '$d' >> tmpparfile
+endline=$(sed -n '/\&filelist/,/[\/|\&end] *$/p' ${parfile[0]} | sed -n '$p')
+sed -n '/\&filelist/,/[\/|\&end] *$/p' ${parfile[0]} | sed '$d' >> tmpparfile
 # Write lines of specified parameters
 for par in ${pars}; do
   if ! egrep -q "^ *${par}(\(.+\))?=" tmpparfile; then
-#    sed -n '/\&filelist/,/\&/p' ${parfile} | sed '$d' | sed -n '/[\/|\&end] *$/,$p' | egrep -m 1 "^ *${par}(\(.+\))? *=" >> tmpparfile
-    sed -n '/\&filelist/,/\&/p' ${parfile} | sed '$d' | sed -n '/[\/|\&end] *$/,$p' | egrep "^ *${par}(\(.+\))? *=" >> tmpparfile
+#    sed -n '/\&filelist/,/\&/p' ${parfile[0]} | sed '$d' | sed -n '/[\/|\&end] *$/,$p' | egrep -m 1 "^ *${par}(\(.+\))? *=" >> tmpparfile
+    sed -n '/\&filelist/,/\&/p' ${parfile[0]} | sed '$d' | sed -n '/[\/|\&end] *$/,$p' | egrep "^ *${par}(\(.+\))? *=" >> tmpparfile
   fi
 done
 # if egrep -q "^ *convert *=" tmpparfile; then
@@ -101,13 +115,13 @@ sed -i '/^ *snapshotnext *=/d' tmpparfile
 # Write ' /' or ' &end' to the end of '&filelist'
 echo -e "${endline}\n" >> tmpparfile
 # Copy the remanent lines
-sed -n '/\&savelist/,$p' ${parfile} >> tmpparfile
+sed -n '/\&savelist/,$p' ${parfile[0]} >> tmpparfile
 #######################################################################|
 # For checking
-echo "######## ${parfile} ########"
+echo "######## ${parfile[0]} ########"
 sed -n '/\&filelist/,/^ *$/p' tmpparfile
 echo '----------------------------------------------------------'
-echo "Convert: ${parfile} ${data} ${startindex} ${stopindex}"
+echo "Convert: ${parfile[@]} ${data} ${startindex} ${stopindex}"
 echo '----------------------------------------------------------'
 if [ "$a" != 'y' ]; then read -p 'Continue?[y/n]: ' a; fi
 if [ "$a" != 'y' ]; then echo 'Abort.'; exit 1; fi
@@ -121,10 +135,9 @@ for index in $(seq ${startindex} ${stopindex}); do
     rate="$((${index}-${startindex}+1))/${num}"
     # sed -i "s%^\( *restart_from_file *= *\).*$%\1'${data}$(printf "%04d\n" ${index})\.dat'%g" tmpparfile
     # sed -i "s%^\( *snapshotnext *= *\).*$%\1$((index+1))%g" tmpparfile
-    sed -n '/\&filelist/,/^ *$/p' tmpparfile
     echo '---------------------------------------------------------------------' | tee -a convert.log
-    # echo "$mpi -n $n ./amrvac -i ${parfile} -if ${data}$(printf "%04d\n" ${index}).dat (${rate})" | tee -a convert.log
-    echo "$mpi -n $n ./amrvac -i ${parfile} -if ${data}$(printf "%04d\n" ${index}).dat -convert (${rate})" | tee -a convert.log
+    # echo "$mpi -n $n ./amrvac -i ${parfile[@]} -if ${data}$(printf "%04d\n" ${index}).dat (${rate})" | tee -a convert.log
+    echo "$mpi -n $n ./amrvac -i ${parfile[@]} -if ${data}$(printf "%04d\n" ${index}).dat -convert (${rate})" | tee -a convert.log
     echo '---------------------------------------------------------------------' | tee -a convert.log
     # $mpi -n $n ./amrvac$opt 2>&1 | tee -a convert.log
     $mpi -n $n ./amrvac$opt -if ${data}$(printf "%04d\n" ${index}).dat -convert 2>&1 | tee -a convert.log
@@ -135,6 +148,8 @@ echo "Elapsed time: $((${endtime}-${starttime})) sec"
 grep --color 'ERROR' convert.log
 #######################################################################|
 echo '=== Done!('$(basename $0)') ==='
+if [ "$(whoami)" != 'lydia' ]; then exit 0; fi
 sound=~/Music/sound/done1
-if [ -f $sound ]; then mplayer $sound > /dev/null 2>&1; fi
+vol=$(pactl list sinks | grep 'Volume: front-' | tail -1 | sed -r 's/^.* ([0-9]+)%.*$/\1/')
+if [[ -f $sound && $vol -gt 20 ]]; then mplayer $sound > /dev/null 2>&1; fi
 exit 0

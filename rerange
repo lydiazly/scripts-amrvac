@@ -1,7 +1,7 @@
 #!/bin/bash
 # Rename files to range from new start index(keep increment).
 # 2015-07-03 written by Lydia
-# 2018-05-26 modified by Lydia
+# 2018-10-18 modified by Lydia
 #######################################################################|
 d=4  # Digits of file index for '.dat' & '.vtu', e.g. filename0001.dat(d=4)
 newhead=''
@@ -60,7 +60,7 @@ if [ "$a" != 'y' ]; then
     if [[ "${suf}" == 'dat' || "${suf}" =~ p?vtu$ ]]; then
       ind=$(echo $i | sed -r "s/^.*([0-9]{$d})${delim}${suf}$/\1/")
       indtrim=$(echo ${ind} | awk '{printf "%d\n",$1}')
-      indnew=$(printf '%.'$d'd\n' $((indtrim+dind)))
+      indnew=$(printf '%0'$d'd\n' $((indtrim+dind)))
     else
       ind=$(echo $i | sed -r "s/^.*\.([0-9]*)${delim}${suf}$/\1/")
       indtrim=${ind}
@@ -82,7 +82,7 @@ for i in ${files}; do
   if [[ "${suf}" == 'dat' || "${suf}" =~ p?vtu$ ]]; then
     ind=$(echo $i | sed -r "s/^.*([0-9]{$d})${delim}${suf}$/\1/")
     indtrim=$(echo ${ind} | awk '{printf "%d\n",$1}')
-    indnew=$(printf '%.'$d'd\n' $((indtrim+dind)))
+    indnew=$(printf '%0'$d'd\n' $((indtrim+dind)))
   else
     ind=$(echo $i | sed -r "s/^.*\.([0-9]*)${delim}${suf}$/\1/")
     indtrim=${ind}

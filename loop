@@ -1,40 +1,43 @@
 #!/bin/bash
-# Loop a script or any command
+# Loop a script or any command.
 # 2017-11-05 written by Lydia
-# 2018-07-30 modified by Lydia
+# 2019-03-08 modified by Lydia
 #######################################################################|
 dt=10
-waitdt=0.25
+waitdt=0.25  # indicator
 cmd=''
 a=''
 loop=-1
-usage="USAGE: $(basename $0) N [dt] 'COMMAND'\n \
-\tN: number of loops (default or N < 0: loop forever)\n \
-\tdt: wait seconds (default: 10)"
+usage="USAGE: $(basename $0) [N [dt]] \"COMMAND\"\n \
+\tN\t: number of loops (default or N <= 0: infinite)\n \
+\tdt\t: wait seconds (default: 10)"
 #######################################################################|
 if [ "$1" = 'h' ]; then echo -e $usage; exit 1; fi
 if [[ "$1" =~ ^-?[0-9]+$ ]]; then loop=$(echo $1 | awk '{printf "%d\n",$1}'); shift
 fi
-if [ ${loop} -le 0 ]; then
-  imax=1; echo -e '------ loop ------\n'
-else
-  imax=${loop}; echo -e "------ 1/${imax} ------\n"
-fi
 if [[ "$1" =~ ^[0-9]+$ ]]; then dt=$(echo $1 | awk '{printf "%d\n",$1}'); shift; fi
-dt=$((dt*4))
+dit=$((dt*4))  # 1/waitdt * dt
+if [ $# -lt 1 ]; then echo -e $usage; exit 1; fi
 cmd=$*
-if [ -z "${cmd}" ]; then echo -e $usage; exit 1; fi
+text1='------ Loop ('; text2=') ------'
+echocmd='echo -e'
 #######################################################################|
-i=1
+i=0
 indicator=('-' '\' '|' '/')
-while [ $i -le ${imax} ]; do
+[ ${loop} -le 0 ] && imax=1 || imax=${loop}
+while :; do
+  if [ ${loop} -gt 0 ]; then i=$(($i+1)); fi
+  # Command
+  ${echocmd} "${text1}$([ ${loop} -le 0 ] && echo 'inf' || echo $i/${imax})${text2}"
   bash -c "${cmd}"
-  if [ ${loop} -gt 0 ]; then i=$(($i+1)); else i=1; fi
-  if [[ ${dt} -gt 1 && $i -le ${imax} ]]; then
+  # Check (if i >= imax: stop)
+  if [ $i -ge ${imax} ]; then break; fi
+  # Wait
+  if [ ${dit} -gt 1 ]; then
     t=0
-    while [ $t -lt ${dt} ]; do
+    while [ $t -lt ${dit} ]; do
       if [ $t -eq 0 ]; then
-        echo -en "\nWaiting... ${indicator[0]}"
+        echo -n "Waiting... ${indicator[0]}"
       else
         for j in ${!indicator[@]}; do
           if [ $(echo "$t%${#indicator[@]}" | bc) -eq $j ]; then
@@ -44,11 +47,7 @@ while [ $i -le ${imax} ]; do
       fi
       sleep ${waitdt}; t=$(($t+1))
     done
-    if [ ${loop} -gt 0 ]; then
-      echo -e "\r------ $i/${imax} ------"
-    else
-      echo -e "\r------------------------"
-    fi
+    echo -e '\r             '
   fi
 done
 #######################################################################|
